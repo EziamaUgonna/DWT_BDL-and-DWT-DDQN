@@ -17,6 +17,63 @@ Environment overrides use double underscores to express nesting. For example,
 ``FED_MOE_TRAINING__BATCH_SIZE=128`` will override the default training batch
 size. Command-line overrides follow the same convention via argument names such
 as ``--training-batch-size 128``.
+
+Transformer + MoE Configuration
+--------------------------------
+
+The ``transformer`` configuration section controls the architecture of the
+Transformer backbone with optional Mixture-of-Experts integration:
+
+- ``embedding_dim``: Dimensionality of token embeddings and all intermediate
+  representations throughout the network (default: 256).
+- ``num_layers``: Number of Transformer encoder blocks to stack (default: 6).
+- ``num_heads``: Number of attention heads in multi-head attention (default: 8).
+  Must evenly divide embedding_dim.
+- ``ff_dim``: Dimensionality of feed-forward hidden layer. If None, defaults to
+  4 * embedding_dim (default: None).
+- ``dropout``: Dropout probability applied after attention and feed-forward
+  sublayers (default: 0.1).
+- ``positional_encoding``: Type of positional encoding - one of "sinusoidal"
+  (fixed sine/cosine), "learned" (trainable embeddings), or "none" (no
+  positional information added) (default: "sinusoidal").
+- ``max_seq_length``: Maximum sequence length for positional encoding
+  (default: 512).
+- ``use_moe``: Global flag to enable MoE blocks. When True, MoE replaces
+  feed-forward layers in all or selected layers (default: False).
+- ``moe_layer_indices``: Optional list of 0-based layer indices where MoE
+  should be inserted (e.g., [2, 4] for layers 2 and 4 only). If None and
+  use_moe=True, all layers use MoE (default: None).
+
+The ``moe`` section interacts with transformer layers when ``use_moe`` is
+enabled:
+
+- ``num_experts``: Number of expert networks in each MoE layer (default: 4).
+- ``top_k``: Number of experts to activate per token (default: 2). Must be
+  <= num_experts.
+- ``use_gating_network``: Whether to use learned gating (True) or random
+  routing (False) (default: True).
+- ``temperature``: Temperature for gating softmax. Lower values produce more
+  discrete routing, higher values produce smoother blending (default: 1.0).
+- ``load_balance_weight``: Weight for auxiliary load-balancing loss that
+  encourages uniform expert utilization. Higher values enforce stronger
+  balancing (default: 0.01).
+
+Example Transformer+MoE configuration:
+
+>>> config = load_config(overrides={
+...     "transformer": {
+...         "embedding_dim": 512,
+...         "num_layers": 8,
+...         "num_heads": 8,
+...         "use_moe": True,
+...         "moe_layer_indices": [3, 5, 7],  # MoE only in layers 3, 5, 7
+...     },
+...     "moe": {
+...         "num_experts": 8,
+...         "top_k": 2,
+...         "temperature": 0.5,
+...     },
+... })
 """
 from __future__ import annotations
 
@@ -53,6 +110,18 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "top_k": 2,
         "use_gating_network": True,
         "temperature": 1.0,
+        "load_balance_weight": 0.01,
+    },
+    "transformer": {
+        "embedding_dim": 256,
+        "num_layers": 6,
+        "num_heads": 8,
+        "ff_dim": None,
+        "dropout": 0.1,
+        "positional_encoding": "sinusoidal",
+        "max_seq_length": 512,
+        "use_moe": False,
+        "moe_layer_indices": None,
     },
     "privacy": {
         "enable_dp": False,
@@ -184,6 +253,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--moe-top-k", type=int, dest="moe__top_k")
     parser.add_argument("--moe-use-gating", type=_parse_bool, dest="moe__use_gating_network")
     parser.add_argument("--moe-temperature", type=float, dest="moe__temperature")
+    parser.add_argument("--moe-load-balance-weight", type=float, dest="moe__load_balance_weight")
+
+    # Transformer arguments
+    parser.add_argument("--transformer-embedding-dim", type=int, dest="transformer__embedding_dim")
+    parser.add_argument("--transformer-num-layers", type=int, dest="transformer__num_layers")
+    parser.add_argument("--transformer-num-heads", type=int, dest="transformer__num_heads")
+    parser.add_argument("--transformer-ff-dim", type=int, dest="transformer__ff_dim")
+    parser.add_argument("--transformer-dropout", type=float, dest="transformer__dropout")
+    parser.add_argument("--transformer-positional-encoding", dest="transformer__positional_encoding")
+    parser.add_argument("--transformer-max-seq-length", type=int, dest="transformer__max_seq_length")
+    parser.add_argument("--transformer-use-moe", type=_parse_bool, dest="transformer__use_moe")
 
     # Privacy arguments
     parser.add_argument("--privacy-enable-dp", type=_parse_bool, dest="privacy__enable_dp")
