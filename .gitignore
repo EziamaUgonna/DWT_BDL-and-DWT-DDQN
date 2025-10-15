@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+*.so
+*.dylib
+
+# Virtual environments
+.env/
+.venv/
+venv/
+ENV/
+
+# Distribution & packaging
+build/
+dist/
+*.egg-info/
+
+# Notebook checkpoints and logs
+.ipynb_checkpoints/
+*.log
+
+# Experiment artefacts
+results/
+artifacts/
+checkpoints/
